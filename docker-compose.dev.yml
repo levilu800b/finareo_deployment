@@ -1,0 +1,97 @@
+# =============================================================================
+# LiveLens Development Docker Compose
+# Uses development Dockerfiles with hot reload
+# =============================================================================
+
+services:
+  # Database
+  mysql:
+    image: mysql:8.0
+    container_name: livelens_mysql_dev
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-devpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-livelens_dev}
+      MYSQL_USER: ${MYSQL_USER:-livelens}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-devpassword}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_dev_data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password --bind-address=0.0.0.0
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-devpassword}"]
+      timeout: 20s
+      retries: 10
+      interval: 10s
+      start_period: 60s
+    restart: unless-stopped
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: livelens_redis_dev
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_dev_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # Backend (Development with hot reload)
+  backend:
+    build:
+      context: ../liveLens_backend
+      dockerfile: Dockerfile.dev
+    container_name: livelens_backend_dev
+    ports:
+      - "8000:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../liveLens_backend:/app:cached
+      - /app/__pycache__
+    environment:
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-dev-secret-key-change-in-production}
+      - DJANGO_DEBUG=True
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,backend
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-livelens_dev}
+      - MYSQL_USER=${MYSQL_USER:-livelens}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-devpassword}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ENVIRONMENT=development
+    restart: unless-stopped
+
+  # Frontend (Development with hot reload)
+  frontend:
+    build:
+      context: ../livelens_frontend
+      dockerfile: Dockerfile.dev
+    container_name: livelens_frontend_dev
+    ports:
+      - "3000:5173"
+    depends_on:
+      - backend
+    volumes:
+      - ../livelens_frontend:/app:cached
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000/api
+      - VITE_BACKEND_URL=http://localhost:8000
+      - VITE_NODE_ENV=development
+      - VITE_ENVIRONMENT=development
+      - VITE_APP_TITLE=LiveLens Dev
+    restart: unless-stopped
+
+volumes:
+  mysql_dev_data:
+  redis_dev_data:

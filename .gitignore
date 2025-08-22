@@ -1,0 +1,53 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars.backup
+*.tfplan
+.terraform/
+.terraform.lock.hcl
+
+# Environment variables and configuration
+.env
+.env.local
+.env.*.local
+.env.dev
+.env.production
+config.env
+*.env
+
+# Logs
+*.log
+logs/
+
+# AWS
+.aws/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+outputs/*.json
+
+# Secrets
+secrets/
+*.pem
+*.key
+
+# Temporary files
+tmp/
+temp/
+
+# Coverage reports
+coverage/

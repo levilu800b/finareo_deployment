@@ -1,0 +1,67 @@
+name: Deploy LiveLens to Hostinger VPS
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: 🚀 Deploy to Production
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🚀 Deploy to Hostinger VPS
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_PRIVATE_KEY }}
+        port: ${{ secrets.VPS_PORT }}
+        script: |
+          cd /opt/livelens
+          
+          # Pull latest changes for all repositories
+          echo "📥 Pulling latest changes..."
+          
+          # Update deployment repo
+          cd livelens_deployment && git pull origin master && cd ..
+          
+          # Update backend repo  
+          cd LiveLens_Backend && git pull origin master && cd ..
+          
+          # Update frontend repo
+          cd LiveLens_UI && git pull origin master && cd ..
+          
+                    # Navigate to deployment directory
+          cd livelens_deployment
+          
+          # Rebuild and restart services
+          echo "🐳 Rebuilding Docker services..."
+          docker-compose -f docker-compose.hostinger.yml --env-file .env.production down
+          docker-compose -f docker-compose.hostinger.yml --env-file .env.production build --no-cache
+          docker-compose -f docker-compose.hostinger.yml --env-file .env.production up -d
+          
+          # Wait for services to start
+          echo "⏳ Waiting for services to start..."
+          sleep 30
+          
+          # Check if services are running
+          echo "🔍 Checking service status..."
+          docker-compose -f docker-compose.hostinger.yml --env-file .env.production ps
+          
+          # Health check
+          echo "🏥 Performing health check..."
+          timeout 60 bash -c 'while ! curl -f https://livelens.space/health/ >/dev/null 2>&1; do sleep 5; done'
+          
+          # Verify SEO endpoints are working
+          echo "🕷️ Verifying SEO endpoints..."
+          sleep 10
+          curl -I https://livelens.space/sitemap.xml || echo "Sitemap will be available shortly"
+          curl -I https://livelens.space/robots.txt || echo "Robots.txt will be available shortly"
+          
+          echo "✅ Deployment completed successfully!"
+          echo "🌐 LiveLens is now live at https://livelens.space"
