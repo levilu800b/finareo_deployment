@@ -12,6 +12,7 @@ Complete guide for deploying and managing the Finareo personal portfolio managem
 - [GitHub Actions CI/CD](#github-actions-cicd)
 - [Deployment Commands](#deployment-commands)
 - [Database Backups](#database-backups)
+- [VPS Disk Cleanup](#vps-disk-cleanup)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -471,6 +472,68 @@ cat /var/log/cloudflared-finareo.log | grep trycloudflare
 | MySQL | 3307 | 3306 |
 | Nginx HTTP | 8081 | 80 |
 | Nginx HTTPS | 8444 | 443 |
+
+---
+
+## 🧹 VPS Disk Cleanup
+
+Run these commands periodically to free up disk space.
+
+### Quick Cleanup (Safe)
+
+```bash
+docker system prune -a -f && apt clean && journalctl --vacuum-time=3d
+```
+
+### Docker Cleanup
+
+```bash
+# Remove unused images, containers, networks, and build cache
+docker system prune -a -f
+
+# Remove unused volumes (careful - only if you're sure no data needed)
+docker volume prune -f
+
+# See how much space Docker is using
+docker system df
+```
+
+### System Cleanup
+
+```bash
+# Clean APT cache and remove unused packages
+apt clean
+apt autoremove -y
+
+# Clean old journal logs (keep last 3 days)
+journalctl --vacuum-time=3d
+
+# Truncate large log files
+truncate -s 0 /var/log/*.log
+```
+
+### Backup Cleanup
+
+```bash
+# See backup sizes
+du -sh /opt/finareo/backups/*
+
+# Keep only last 5 backups
+ls -t /opt/finareo/backups/*.sql* | tail -n +6 | xargs rm -f
+```
+
+### Find What's Using Space
+
+```bash
+# Find largest directories
+du -sh /* 2>/dev/null | sort -hr | head -10
+
+# Find largest files (>100MB)
+find / -type f -size +100M -exec ls -lh {} \; 2>/dev/null | head -20
+
+# Check disk usage
+df -h
+```
 
 ---
 
