@@ -52,6 +52,12 @@ jobs:
           # Navigate to deployment directory
           cd deployment
           
+          # Backup database BEFORE deployment
+          echo "💾 Creating pre-deployment database backup..."
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          mkdir -p /opt/finareo/backups
+          docker exec finareo-mysql mysqldump -u root -p"${{ secrets.MYSQL_ROOT_PASSWORD }}" finareo > /opt/finareo/backups/finareo_pre_deploy_${TIMESTAMP}.sql 2>/dev/null || echo "No existing database to backup"
+          
           # Copy backend source
           echo "📋 Copying backend source..."
           rm -rf backend/src backend/pom.xml
@@ -60,9 +66,9 @@ jobs:
           
           # Rebuild and restart services
           echo "🐳 Rebuilding Docker services..."
-          docker-compose -f docker-compose.yml -f docker-compose.prod.yml down
-          docker-compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache backend
-          docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+          docker-compose -p finareo -f docker-compose.yml -f docker-compose.prod.yml down
+          docker-compose -p finareo -f docker-compose.yml -f docker-compose.prod.yml build --no-cache backend
+          docker-compose -p finareo -f docker-compose.yml -f docker-compose.prod.yml up -d
           
           # Wait for services to start
           echo "⏳ Waiting for services to start..."
@@ -70,7 +76,7 @@ jobs:
           
           # Check if services are running
           echo "🔍 Checking service status..."
-          docker-compose -f docker-compose.yml -f docker-compose.prod.yml ps
+          docker-compose -p finareo -f docker-compose.yml -f docker-compose.prod.yml ps
           
           # Health check
           echo "🏥 Performing health check..."
@@ -79,6 +85,15 @@ jobs:
           # Cleanup old images
           echo "🧹 Cleaning up..."
           docker image prune -f
+          
+          # Backup database AFTER successful deployment
+          echo "💾 Creating post-deployment database backup..."
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          docker exec finareo-mysql mysqldump -u root -p"${{ secrets.MYSQL_ROOT_PASSWORD }}" finareo > /opt/finareo/backups/finareo_post_deploy_${TIMESTAMP}.sql
+          gzip /opt/finareo/backups/finareo_post_deploy_${TIMESTAMP}.sql
+          
+          # Keep only last 7 days of backups
+          find /opt/finareo/backups -name "*.sql*" -mtime +7 -delete
           
           echo "✅ Deployment completed successfully!"
           echo "🌐 Finareo API is now live at https://api.finareo.com"
