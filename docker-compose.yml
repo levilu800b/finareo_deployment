@@ -45,6 +45,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: finareo-backend:latest
     container_name: finareo-backend
     restart: unless-stopped
     ports:
