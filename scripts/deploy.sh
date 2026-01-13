@@ -164,21 +164,6 @@ update_backend() {
     
     log_success "Backend update complete!"
 }
-    cp -r "$BACKEND_SRC/src" "$DEPLOY_SRC/backend/"
-    cp "$BACKEND_SRC/pom.xml" "$DEPLOY_SRC/backend/"
-    
-    # Rebuild backend container
-    cd "$DEPLOY_SRC"
-    log_info "Rebuilding backend container..."
-    docker-compose -f $COMPOSE_FILE -f $COMPOSE_PROD build --no-cache backend
-    docker-compose -f $COMPOSE_FILE -f $COMPOSE_PROD up -d --no-deps backend
-    
-    # Cleanup old images
-    log_info "Cleaning up old images..."
-    docker image prune -f
-    
-    log_success "Backend update complete!"
-}
 
 logs() {
     SERVICE=${2:-""}
