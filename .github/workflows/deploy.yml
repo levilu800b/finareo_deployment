@@ -1,9 +1,25 @@
-name: Deploy LiveLens to Hostinger VPS
+name: Deploy Finareo Backend to VPS
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, main ]
+    paths:
+      - 'docker-compose*.yml'
+      - 'nginx/**'
+      - 'backend/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
   workflow_dispatch:
+    inputs:
+      deploy_type:
+        description: 'Deployment type'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - backend-only
+          - restart
 
 jobs:
   deploy:
@@ -14,7 +30,7 @@ jobs:
     - name: 📥 Checkout code
       uses: actions/checkout@v4
 
-    - name: 🚀 Deploy to Hostinger VPS
+    - name: 🚀 Deploy to VPS
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.VPS_HOST }}
@@ -22,28 +38,31 @@ jobs:
         key: ${{ secrets.VPS_PRIVATE_KEY }}
         port: ${{ secrets.VPS_PORT }}
         script: |
-          cd /opt/livelens
+          cd /opt/finareo
           
           # Pull latest changes for all repositories
           echo "📥 Pulling latest changes..."
           
           # Update deployment repo
-          cd livelens_deployment && git pull origin master && cd ..
+          cd deployment && git pull origin master && cd ..
           
           # Update backend repo  
-          cd LiveLens_Backend && git pull origin master && cd ..
+          cd backend-src && git pull origin master && cd ..
           
-          # Update frontend repo
-          cd LiveLens_UI && git pull origin master && cd ..
+          # Navigate to deployment directory
+          cd deployment
           
-                    # Navigate to deployment directory
-          cd livelens_deployment
+          # Copy backend source
+          echo "📋 Copying backend source..."
+          rm -rf backend/src backend/pom.xml
+          cp -r ../backend-src/src backend/
+          cp ../backend-src/pom.xml backend/
           
           # Rebuild and restart services
           echo "🐳 Rebuilding Docker services..."
-          docker-compose -f docker-compose.hostinger.yml --env-file .env.production down
-          docker-compose -f docker-compose.hostinger.yml --env-file .env.production build --no-cache
-          docker-compose -f docker-compose.hostinger.yml --env-file .env.production up -d
+          docker-compose -f docker-compose.yml -f docker-compose.prod.yml down
+          docker-compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache backend
+          docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
           
           # Wait for services to start
           echo "⏳ Waiting for services to start..."
@@ -51,17 +70,15 @@ jobs:
           
           # Check if services are running
           echo "🔍 Checking service status..."
-          docker-compose -f docker-compose.hostinger.yml --env-file .env.production ps
+          docker-compose -f docker-compose.yml -f docker-compose.prod.yml ps
           
           # Health check
           echo "🏥 Performing health check..."
-          timeout 60 bash -c 'while ! curl -f https://livelens.space/health/ >/dev/null 2>&1; do sleep 5; done'
+          curl -f http://localhost:8000/api/v1/ || echo "API starting up..."
           
-          # Verify SEO endpoints are working
-          echo "🕷️ Verifying SEO endpoints..."
-          sleep 10
-          curl -I https://livelens.space/sitemap.xml || echo "Sitemap will be available shortly"
-          curl -I https://livelens.space/robots.txt || echo "Robots.txt will be available shortly"
+          # Cleanup old images
+          echo "🧹 Cleaning up..."
+          docker image prune -f
           
           echo "✅ Deployment completed successfully!"
-          echo "🌐 LiveLens is now live at https://livelens.space"
+          echo "🌐 Finareo API is now live at https://api.finareo.com"
